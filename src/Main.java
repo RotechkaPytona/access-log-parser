@@ -48,41 +48,85 @@ public class Main {
         BufferedReader reader = new BufferedReader(fileReader);
 
         int lineCount = 0;
-        int maxLength = 0;
-        int minLength = Integer.MAX_VALUE;
+        int googlebotCount = 0;
+        int yandexBotCount = 0;
         String line;
 
         try {
             while ((line = reader.readLine()) != null) {
                 lineCount++;
-                int length = line.length();
 
                 // Проверяем длину строки
-                if (length > 1024) {
+                if (line.length() > 1024) {
                     throw new LineTooLongException("Строка #" + lineCount + " превышает максимально допустимую длину 1024 символа");
                 }
 
-                // Обновляем максимальную длину
-                if (length > maxLength) {
-                    maxLength = length;
-                }
+                // Анализируем User-Agent
+                processUserAgent(line, lineCount);
 
-                // Обновляем минимальную длину
-                if (length < minLength) {
-                    minLength = length;
+                // Подсчет ботов
+                if (isGooglebot(line)) {
+                    googlebotCount++;
+                } else if (isYandexBot(line)) {
+                    yandexBotCount++;
                 }
             }
 
             // Выводим результаты
             System.out.println("Общее количество строк в файле: " + lineCount);
-            System.out.println("Длина самой длинной строки: " + maxLength);
-            System.out.println("Длина самой короткой строки: " + (minLength == Integer.MAX_VALUE ? 0 : minLength));
+            System.out.println("Запросов от Googlebot: " + googlebotCount +
+                    " (" + calculatePercentage(googlebotCount, lineCount) + "%)");
+            System.out.println("Запросов от YandexBot: " + yandexBotCount +
+                    " (" + calculatePercentage(yandexBotCount, lineCount) + "%)");
 
         } finally {
             // Закрываем ресурсы в блоке finally
             reader.close();
             fileReader.close();
         }
+    }
+
+    private static boolean isGooglebot(String line) {
+        return extractUserAgentFragment(line).equals("Googlebot");
+    }
+
+    private static boolean isYandexBot(String line) {
+        return extractUserAgentFragment(line).equals("YandexBot");
+    }
+
+    private static String extractUserAgentFragment(String line) {
+        // Находим часть строки с User-Agent
+        int uaStart = line.indexOf("\" \"") + 3;
+        int uaEnd = line.lastIndexOf("\"");
+        if (uaStart < 3 || uaEnd < 0) return "";
+
+        String userAgent = line.substring(uaStart, uaEnd);
+
+        // Выделяем часть в первых скобках
+        int bracketsStart = userAgent.indexOf('(');
+        int bracketsEnd = userAgent.indexOf(')');
+        if (bracketsStart < 0 || bracketsEnd < 0) return "";
+
+        String firstBrackets = userAgent.substring(bracketsStart + 1, bracketsEnd);
+
+        // Разделяем по точке с запятой
+        String[] parts = firstBrackets.split(";");
+        if (parts.length < 2) return "";
+
+        // Берем второй фрагмент и очищаем от пробелов
+        String fragment = parts[1].trim();
+
+        // Отделяем часть до слэша
+        int slashIndex = fragment.indexOf('/');
+        return slashIndex > 0 ? fragment.substring(0, slashIndex) : fragment;
+    }
+
+    private static void processUserAgent(String line, int lineNumber) {
+        String fragment = extractUserAgentFragment(line);
+    }
+
+    private static double calculatePercentage(int count, int total) {
+        return total == 0 ? 0 : (count * 100.0 / total);
     }
 }
 
