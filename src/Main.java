@@ -61,7 +61,12 @@ public class Main {
         System.out.println("Общий трафик: " + stats.getTotalTraffic() + " байт");
         System.out.printf("Средний трафик в час: %.2f байт/час%n", stats.getTrafficRate());
 
-        System.out.printf("Среднее количество посещений в час: %.2f%n", stats.getAverageVisitsPerHour());
+        // Новая статистика
+        System.out.println("\nПиковая посещаемость (за секунду): " + stats.getPeakVisitsPerSecond());
+        System.out.println("Максимальная посещаемость одним пользователем: " + stats.getMaxVisitsByUser());
+        System.out.println("Сайты-источники трафика: " + stats.getRefererDomains());
+
+        System.out.printf("\nСреднее количество посещений в час: %.2f%n", stats.getAverageVisitsPerHour());
         System.out.printf("Среднее количество ошибочных запросов в час: %.2f%n", stats.getAverageErrorRequestsPerHour());
         System.out.printf("Средняя посещаемость одним пользователем: %.2f%n", stats.getAverageVisitsPerUser());
 
@@ -85,8 +90,8 @@ public class Main {
         stats.getResponseCodeCount().forEach((code, count) ->
                 System.out.printf("  %-10d: %d (%.1f%%)%n", code, count, 100.0 * count / finalLineCount3));
 
-        System.out.println("Несуществующие страницы: " + stats.getNotFoundPages());
-
+        System.out.println("\nНесуществующие страницы: " + stats.getNotFoundPages());
+        System.out.println("Существующие страницы: " + stats.getExistingPages());
         System.out.println("Статистика браузеров: " + stats.getBrowserStatistics());
     }
 }

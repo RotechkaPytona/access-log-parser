@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Statistics {
     private int totalTraffic;
@@ -15,10 +17,14 @@ public class Statistics {
     private final Map<Integer, Integer> responseCodeCount = new HashMap<>();
     private final Set<String> existingPages = new HashSet<>();
     private final Set<String> notFoundPages = new HashSet<>();
-    private final Set<String> uniqueUserIps = new HashSet<>(); // Для уникальных IP пользователей (не ботов)
-    private int botRequestsCount = 0; // Количество запросов от ботов
-    private int errorRequestsCount = 0; // Количество ошибочных запросов (4xx и 5xx)
-    private int userRequestsCount = 0; // Количество запросов от обычных пользователей (не ботов)
+    private final Set<String> uniqueUserIps = new HashSet<>();
+    private final Set<String> refererDomains = new HashSet<>();
+    private final Map<Integer, Integer> visitsPerSecond = new HashMap<>();
+    private final Map<String, Integer> visitsPerUser = new HashMap<>();
+    private int botRequestsCount = 0;
+    private int errorRequestsCount = 0;
+    private int userRequestsCount = 0;
+    private static final Pattern DOMAIN_PATTERN = Pattern.compile("^(https?://)?([^/]+)");
 
     public Statistics() {
         this.totalTraffic = 0;
@@ -42,6 +48,14 @@ public class Statistics {
             maxTime = entryTime;
         }
 
+        // Обработка referer для списка сайтов-источников
+        if (entry.getReferer() != null && !entry.getReferer().isEmpty()) {
+            String domain = extractDomain(entry.getReferer());
+            if (domain != null) {
+                refererDomains.add(domain);
+            }
+        }
+
         // Добавляем страницу с кодом 200
         if (entry.getResponseCode() == 200) {
             existingPages.add(entry.getPath());
@@ -61,26 +75,64 @@ public class Statistics {
         } else {
             userRequestsCount++;
             uniqueUserIps.add(entry.getIpAddress());
+
+            // Подсчет посещений по пользователям (IP)
+            visitsPerUser.merge(entry.getIpAddress(), 1, Integer::sum);
+
+            // Подсчет посещений по секундам
+            int second = entryTime.getSecond();
+            visitsPerSecond.merge(second, 1, Integer::sum);
         }
 
-        // Статистика по ОС
+        // Остальная статистика (ОС, браузеры, методы, коды ответа)
         String os = entry.getUserAgent().getOsType();
         osUsage.put(os, osUsage.getOrDefault(os, 0) + 1);
 
-        // Статистика по браузерам
         String browser = entry.getUserAgent().getBrowser();
         browserUsage.put(browser, browserUsage.getOrDefault(browser, 0) + 1);
 
-        // Статистика по методам HTTP
         HttpMethod method = entry.getMethod();
         methodCount.put(method, methodCount.getOrDefault(method, 0) + 1);
 
-        // Статистика по кодам ответа
         int code = entry.getResponseCode();
         responseCodeCount.put(code, responseCodeCount.getOrDefault(code, 0) + 1);
     }
 
-    // Метод подсчёта среднего количества посещений сайта за час (только обычные пользователи)
+    // Метод расчёта пиковой посещаемости сайта (в секунду)
+    public int getPeakVisitsPerSecond() {
+        return visitsPerSecond.values().stream()
+                .max(Integer::compare)
+                .orElse(0);
+    }
+
+    // Метод возвращающий список сайтов-источников
+    public Set<String> getRefererDomains() {
+        return new HashSet<>(refererDomains);
+    }
+
+    // Метод расчёта максимальной посещаемости одним пользователем
+    public int getMaxVisitsByUser() {
+        return visitsPerUser.values().stream()
+                .max(Integer::compare)
+                .orElse(0);
+    }
+
+    // Вспомогательный метод для извлечения домена из URL
+    private String extractDomain(String url) {
+        try {
+            Matcher matcher = DOMAIN_PATTERN.matcher(url);
+            if (matcher.find()) {
+                String domain = matcher.group(2);
+                // Удаляем порт если есть
+                return domain.split(":")[0];
+            }
+        } catch (Exception e) {
+            System.err.println("Error parsing domain from: " + url);
+        }
+        return null;
+    }
+
+    // Остальные существующие методы остаются без изменений
     public double getAverageVisitsPerHour() {
         if (minTime == null || maxTime == null || userRequestsCount == 0) {
             return 0.0;
@@ -89,7 +141,6 @@ public class Statistics {
         return hoursBetween == 0 ? userRequestsCount : (double) userRequestsCount / hoursBetween;
     }
 
-    // Метод подсчёта среднего количества ошибочных запросов в час
     public double getAverageErrorRequestsPerHour() {
         if (minTime == null || maxTime == null || errorRequestsCount == 0) {
             return 0.0;
@@ -98,7 +149,6 @@ public class Statistics {
         return hoursBetween == 0 ? errorRequestsCount : (double) errorRequestsCount / hoursBetween;
     }
 
-    // Метод расчёта средней посещаемости одним пользователем
     public double getAverageVisitsPerUser() {
         if (uniqueUserIps.isEmpty()) {
             return 0.0;
@@ -106,7 +156,6 @@ public class Statistics {
         return (double) userRequestsCount / uniqueUserIps.size();
     }
 
-    // Остальные методы остаются без изменений
     public Set<String> getNotFoundPages() {
         return new HashSet<>(notFoundPages);
     }
