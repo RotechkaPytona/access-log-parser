@@ -92,6 +92,8 @@ public class Main {
 
         System.out.println("\nНесуществующие страницы: " + stats.getNotFoundPages());
         System.out.println("Существующие страницы: " + stats.getExistingPages());
+
         System.out.println("Статистика браузеров: " + stats.getBrowserStatistics());
+
     }
 }

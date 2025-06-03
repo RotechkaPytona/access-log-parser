@@ -8,7 +8,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Statistics {
-    private int totalTraffic;
+    private long totalTraffic;
     private LocalDateTime minTime;
     private LocalDateTime maxTime;
     private final Map<String, Integer> osUsage = new HashMap<>();
@@ -19,15 +19,15 @@ public class Statistics {
     private final Set<String> notFoundPages = new HashSet<>();
     private final Set<String> uniqueUserIps = new HashSet<>();
     private final Set<String> refererDomains = new HashSet<>();
-    private final Map<Integer, Integer> visitsPerSecond = new HashMap<>();
-    private final Map<String, Integer> visitsPerUser = new HashMap<>();
+    private final Map<Integer, Long> visitsPerSecond = new HashMap<>();  // Изменено на Long
+    private final Map<String, Long> visitsPerUser = new HashMap<>();    // Изменено на Long
     private int botRequestsCount = 0;
     private int errorRequestsCount = 0;
     private int userRequestsCount = 0;
     private static final Pattern DOMAIN_PATTERN = Pattern.compile("^(https?://)?([^/]+)");
 
     public Statistics() {
-        this.totalTraffic = 0;
+        this.totalTraffic = 0L;
         this.minTime = null;
         this.maxTime = null;
     }
@@ -36,10 +36,8 @@ public class Statistics {
         boolean isBot = entry.getUserAgent().getBrowser().toLowerCase().contains("bot") ||
                 entry.getUserAgent().getOsType().toLowerCase().contains("bot");
 
-        // Обновляем общий трафик
         this.totalTraffic += entry.getDataSize();
 
-        // Обновляем временной диапазон
         LocalDateTime entryTime = entry.getTime();
         if (minTime == null || entryTime.isBefore(minTime)) {
             minTime = entryTime;
@@ -48,7 +46,6 @@ public class Statistics {
             maxTime = entryTime;
         }
 
-        // Обработка referer для списка сайтов-источников
         if (entry.getReferer() != null && !entry.getReferer().isEmpty()) {
             String domain = extractDomain(entry.getReferer());
             if (domain != null) {
@@ -56,16 +53,13 @@ public class Statistics {
             }
         }
 
-        // Добавляем страницу с кодом 200
         if (entry.getResponseCode() == 200) {
             existingPages.add(entry.getPath());
         }
-        // Добавляем несуществующую страницу с кодом 404
         else if (entry.getResponseCode() == 404) {
             notFoundPages.add(entry.getPath());
         }
 
-        // Проверяем на ошибочный запрос (4xx или 5xx)
         if (entry.getResponseCode() >= 400 && entry.getResponseCode() < 600) {
             errorRequestsCount++;
         }
@@ -76,15 +70,14 @@ public class Statistics {
             userRequestsCount++;
             uniqueUserIps.add(entry.getIpAddress());
 
-            // Подсчет посещений по пользователям (IP)
-            visitsPerUser.merge(entry.getIpAddress(), 1, Integer::sum);
+            // Изменено на Long
+            visitsPerUser.merge(entry.getIpAddress(), 1L, Long::sum);
 
-            // Подсчет посещений по секундам
             int second = entryTime.getSecond();
-            visitsPerSecond.merge(second, 1, Integer::sum);
+            // Изменено на Long
+            visitsPerSecond.merge(second, 1L, Long::sum);
         }
 
-        // Остальная статистика (ОС, браузеры, методы, коды ответа)
         String os = entry.getUserAgent().getOsType();
         osUsage.put(os, osUsage.getOrDefault(os, 0) + 1);
 
@@ -98,32 +91,29 @@ public class Statistics {
         responseCodeCount.put(code, responseCodeCount.getOrDefault(code, 0) + 1);
     }
 
-    // Метод расчёта пиковой посещаемости сайта (в секунду)
-    public int getPeakVisitsPerSecond() {
+    // Изменено на long и Long
+    public long getPeakVisitsPerSecond() {
         return visitsPerSecond.values().stream()
-                .max(Integer::compare)
-                .orElse(0);
+                .max(Long::compare)
+                .orElse(0L);
     }
 
-    // Метод возвращающий список сайтов-источников
     public Set<String> getRefererDomains() {
         return new HashSet<>(refererDomains);
     }
 
-    // Метод расчёта максимальной посещаемости одним пользователем
-    public int getMaxVisitsByUser() {
+    // Изменено на long и Long
+    public long getMaxVisitsByUser() {
         return visitsPerUser.values().stream()
-                .max(Integer::compare)
-                .orElse(0);
+                .max(Long::compare)
+                .orElse(0L);
     }
 
-    // Вспомогательный метод для извлечения домена из URL
     private String extractDomain(String url) {
         try {
             Matcher matcher = DOMAIN_PATTERN.matcher(url);
             if (matcher.find()) {
                 String domain = matcher.group(2);
-                // Удаляем порт если есть
                 return domain.split(":")[0];
             }
         } catch (Exception e) {
@@ -132,7 +122,7 @@ public class Statistics {
         return null;
     }
 
-    // Остальные существующие методы остаются без изменений
+    // Остальные методы остаются без изменений
     public double getAverageVisitsPerHour() {
         if (minTime == null || maxTime == null || userRequestsCount == 0) {
             return 0.0;
@@ -192,7 +182,7 @@ public class Statistics {
         return hoursBetween == 0 ? totalTraffic : (double) totalTraffic / hoursBetween;
     }
 
-    public int getTotalTraffic() { return totalTraffic; }
+    public long getTotalTraffic() { return totalTraffic; }
     public Map<String, Integer> getOsUsage() { return new HashMap<>(osUsage); }
     public Map<String, Integer> getBrowserUsage() { return new HashMap<>(browserUsage); }
     public Map<HttpMethod, Integer> getMethodCount() { return new HashMap<>(methodCount); }
