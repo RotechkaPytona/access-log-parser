@@ -1,7 +1,9 @@
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class Statistics {
     private int totalTraffic;
@@ -11,6 +13,7 @@ public class Statistics {
     private final Map<String, Integer> browserUsage = new HashMap<>();
     private final Map<HttpMethod, Integer> methodCount = new HashMap<>();
     private final Map<Integer, Integer> responseCodeCount = new HashMap<>();
+    private final Set<String> existingPages = new HashSet<>();
 
     public Statistics() {
         this.totalTraffic = 0;
@@ -19,16 +22,20 @@ public class Statistics {
     }
 
     public void addEntry(LogEntry entry) {
-        // Обновляем общий трафик
+        // Обновление общего трафика
         this.totalTraffic += entry.getDataSize();
 
-        // Обновляем временной диапазон
+        // Обновление временного диапазона
         LocalDateTime entryTime = entry.getTime();
         if (minTime == null || entryTime.isBefore(minTime)) {
             minTime = entryTime;
         }
         if (maxTime == null || entryTime.isAfter(maxTime)) {
             maxTime = entryTime;
+        }
+
+        if (entry.getResponseCode() == 200) {
+            existingPages.add(entry.getPath());
         }
 
         // Статистика по ОС
@@ -48,7 +55,26 @@ public class Statistics {
         responseCodeCount.put(code, responseCodeCount.getOrDefault(code, 0) + 1);
     }
 
-    public double getTrafficRate() {
+    // Новый метод: возвращает список всех существующих страниц (с кодом 200)
+    public Set<String> getExistingPages() {
+        return new HashSet<>(existingPages);
+    }
+
+    // Новый метод: возвращает статистику ОС в виде долей (от 0 до 1)
+    public Map<String, Double> getOsStatistics() {
+        Map<String, Double> osStats = new HashMap<>();
+
+        int total = osUsage.values().stream().mapToInt(Integer::intValue).sum();
+
+        for (Map.Entry<String, Integer> entry : osUsage.entrySet()) {
+            double ratio = total > 0 ? (double) entry.getValue() / total : 0;
+            osStats.put(entry.getKey(), ratio);
+        }
+
+        return osStats;
+    }
+
+     public double getTrafficRate() {
         if (minTime == null || maxTime == null || totalTraffic == 0) {
             return 0.0;
         }
@@ -61,7 +87,6 @@ public class Statistics {
         return (double) totalTraffic / hoursBetween;
     }
 
-    // Методы для получения статистики
     public int getTotalTraffic() { return totalTraffic; }
     public Map<String, Integer> getOsUsage() { return new HashMap<>(osUsage); }
     public Map<String, Integer> getBrowserUsage() { return new HashMap<>(browserUsage); }

@@ -1,16 +1,15 @@
-import java.io.*;
-import java.time.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.regex.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
-        int fileCount = 0;
 
         while (true) {
-            System.out.println("Введите путь к файлу:");
+            System.out.println("Введите путь к файлу лога (или 'exit' для выхода):");
             String path = scanner.nextLine();
 
             if ("exit".equalsIgnoreCase(path)) {
@@ -18,19 +17,10 @@ public class Main {
             }
 
             File file = new File(path);
-            if (!file.exists()) {
-                System.out.println("Файл не существует. Попробуйте снова.");
+            if (!file.exists() || !file.isFile()) {
+                System.out.println("Файл не существует или это не файл. Попробуйте снова.");
                 continue;
             }
-
-            if (!file.isFile()) {
-                System.out.println("Путь ведет к папке, а не к файлу. Попробуйте снова.");
-                continue;
-            }
-
-            System.out.println("Путь указан верно.");
-            fileCount++;
-            System.out.println("Это файл номер " + fileCount);
 
             try {
                 processLogFile(file);
@@ -40,6 +30,7 @@ public class Main {
                 System.err.println("Ошибка: " + e.getMessage());
             }
         }
+
         scanner.close();
     }
 
@@ -47,8 +38,6 @@ public class Main {
         Statistics stats = new Statistics();
         int lineCount = 0;
         int errorCount = 0;
-        int googlebotCount = 0;
-        int yandexBotCount = 0;
 
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
             String line;
@@ -56,19 +45,8 @@ public class Main {
                 lineCount++;
 
                 try {
-                    if (line.length() > 1024) {
-                        throw new LineTooLongException("Строка #" + lineCount + " превышает максимальную длину 1024 символа");
-                    }
-
                     LogEntry entry = new LogEntry(line);
                     stats.addEntry(entry);
-
-                    // Подсчет ботов
-                    if (isGooglebot(line)) {
-                        googlebotCount++;
-                    } else if (isYandexBot(line)) {
-                        yandexBotCount++;
-                    }
                 } catch (IllegalArgumentException e) {
                     errorCount++;
                     System.err.println("Ошибка в строке " + lineCount + ": " + e.getMessage());
@@ -80,59 +58,27 @@ public class Main {
         System.out.println("\nРезультаты анализа:");
         System.out.println("Всего строк: " + lineCount);
         System.out.println("Ошибок парсинга: " + errorCount);
-        System.out.println("Запросов от Googlebot: " + googlebotCount +
-                " (" + calculatePercentage(googlebotCount, lineCount) + "%)");
-        System.out.println("Запросов от YandexBot: " + yandexBotCount +
-                " (" + calculatePercentage(yandexBotCount, lineCount) + "%)");
         System.out.println("Общий трафик: " + stats.getTotalTraffic() + " байт");
         System.out.printf("Средний трафик в час: %.2f байт/час%n", stats.getTrafficRate());
 
-        printDistribution("ОС", stats.getOsUsage(), lineCount);
-        printDistribution("браузерам", stats.getBrowserUsage(), lineCount);
-        printDistribution("HTTP методам", stats.getMethodCount(), lineCount);
-        printDistribution("кодам ответа", stats.getResponseCodeCount(), lineCount);
-    }
+        System.out.println("\nРаспределение по ОС:");
+        int finalLineCount = lineCount;
+        stats.getOsUsage().forEach((os, count) ->
+                System.out.printf("  %-10s: %d (%.1f%%)%n", os, count, 100.0 * count / finalLineCount));
 
-    private static void printDistribution(String title, Map<?, Integer> data, int total) {
-        System.out.println("\nРаспределение по " + title + ":");
-        data.forEach((key, count) ->
-                System.out.printf("  %-10s: %d (%.1f%%)%n", key, count, 100.0 * count / total));
-    }
+        System.out.println("\nРаспределение по браузерам:");
+        int finalLineCount1 = lineCount;
+        stats.getBrowserUsage().forEach((browser, count) ->
+                System.out.printf("  %-10s: %d (%.1f%%)%n", browser, count, 100.0 * count / finalLineCount1));
 
-    private static boolean isGooglebot(String line) {
-        return extractUserAgentFragment(line).equals("Googlebot");
-    }
+        System.out.println("\nРаспределение по HTTP методам:");
+        int finalLineCount2 = lineCount;
+        stats.getMethodCount().forEach((method, count) ->
+                System.out.printf("  %-10s: %d (%.1f%%)%n", method, count, 100.0 * count / finalLineCount2));
 
-    private static boolean isYandexBot(String line) {
-        return extractUserAgentFragment(line).equals("YandexBot");
-    }
-
-    private static String extractUserAgentFragment(String line) {
-        int uaStart = line.indexOf("\" \"") + 3;
-        int uaEnd = line.lastIndexOf("\"");
-        if (uaStart < 3 || uaEnd < 0) return "";
-
-        String userAgent = line.substring(uaStart, uaEnd);
-        int bracketsStart = userAgent.indexOf('(');
-        int bracketsEnd = userAgent.indexOf(')');
-        if (bracketsStart < 0 || bracketsEnd < 0) return "";
-
-        String firstBrackets = userAgent.substring(bracketsStart + 1, bracketsEnd);
-        String[] parts = firstBrackets.split(";");
-        if (parts.length < 2) return "";
-
-        String fragment = parts[1].trim();
-        int slashIndex = fragment.indexOf('/');
-        return slashIndex > 0 ? fragment.substring(0, slashIndex) : fragment;
-    }
-
-    private static double calculatePercentage(int count, int total) {
-        return total == 0 ? 0 : (count * 100.0 / total);
-    }
-}
-
-class LineTooLongException extends RuntimeException {
-    public LineTooLongException(String message) {
-        super(message);
+        System.out.println("\nРаспределение по кодам ответа:");
+        int finalLineCount3 = lineCount;
+        stats.getResponseCodeCount().forEach((code, count) ->
+                System.out.printf("  %-10d: %d (%.1f%%)%n", code, count, 100.0 * count / finalLineCount3));
     }
 }

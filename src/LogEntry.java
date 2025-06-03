@@ -34,7 +34,11 @@ public class LogEntry {
         this.path = requestParts.length > 1 ? requestParts[1] : "";
 
         this.responseCode = Integer.parseInt(matcher.group(6));
-        this.dataSize = Integer.parseInt(matcher.group(7));
+
+        // Исправление: проверка на отрицательное значение трафика
+        int size = Integer.parseInt(matcher.group(7));
+        this.dataSize = Math.max(size, 0);  // Если размер отрицательный, устанавливаем 0
+
         this.referer = matcher.group(8);
         this.userAgent = new UserAgent(matcher.group(9));
     }
