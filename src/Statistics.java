@@ -14,7 +14,11 @@ public class Statistics {
     private final Map<HttpMethod, Integer> methodCount = new HashMap<>();
     private final Map<Integer, Integer> responseCodeCount = new HashMap<>();
     private final Set<String> existingPages = new HashSet<>();
-    private final Set<String> notFoundPages = new HashSet<>(); // Для несуществующих страниц
+    private final Set<String> notFoundPages = new HashSet<>();
+    private final Set<String> uniqueUserIps = new HashSet<>(); // Для уникальных IP пользователей (не ботов)
+    private int botRequestsCount = 0; // Количество запросов от ботов
+    private int errorRequestsCount = 0; // Количество ошибочных запросов (4xx и 5xx)
+    private int userRequestsCount = 0; // Количество запросов от обычных пользователей (не ботов)
 
     public Statistics() {
         this.totalTraffic = 0;
@@ -23,6 +27,9 @@ public class Statistics {
     }
 
     public void addEntry(LogEntry entry) {
+        boolean isBot = entry.getUserAgent().getBrowser().toLowerCase().contains("bot") ||
+                entry.getUserAgent().getOsType().toLowerCase().contains("bot");
+
         // Обновляем общий трафик
         this.totalTraffic += entry.getDataSize();
 
@@ -44,6 +51,18 @@ public class Statistics {
             notFoundPages.add(entry.getPath());
         }
 
+        // Проверяем на ошибочный запрос (4xx или 5xx)
+        if (entry.getResponseCode() >= 400 && entry.getResponseCode() < 600) {
+            errorRequestsCount++;
+        }
+
+        if (isBot) {
+            botRequestsCount++;
+        } else {
+            userRequestsCount++;
+            uniqueUserIps.add(entry.getIpAddress());
+        }
+
         // Статистика по ОС
         String os = entry.getUserAgent().getOsType();
         osUsage.put(os, osUsage.getOrDefault(os, 0) + 1);
@@ -61,24 +80,44 @@ public class Statistics {
         responseCodeCount.put(code, responseCodeCount.getOrDefault(code, 0) + 1);
     }
 
-    // Новый метод: возвращает список несуществующих страниц (код 404)
+    // Метод подсчёта среднего количества посещений сайта за час (только обычные пользователи)
+    public double getAverageVisitsPerHour() {
+        if (minTime == null || maxTime == null || userRequestsCount == 0) {
+            return 0.0;
+        }
+        long hoursBetween = ChronoUnit.HOURS.between(minTime, maxTime);
+        return hoursBetween == 0 ? userRequestsCount : (double) userRequestsCount / hoursBetween;
+    }
+
+    // Метод подсчёта среднего количества ошибочных запросов в час
+    public double getAverageErrorRequestsPerHour() {
+        if (minTime == null || maxTime == null || errorRequestsCount == 0) {
+            return 0.0;
+        }
+        long hoursBetween = ChronoUnit.HOURS.between(minTime, maxTime);
+        return hoursBetween == 0 ? errorRequestsCount : (double) errorRequestsCount / hoursBetween;
+    }
+
+    // Метод расчёта средней посещаемости одним пользователем
+    public double getAverageVisitsPerUser() {
+        if (uniqueUserIps.isEmpty()) {
+            return 0.0;
+        }
+        return (double) userRequestsCount / uniqueUserIps.size();
+    }
+
+    // Остальные методы остаются без изменений
     public Set<String> getNotFoundPages() {
         return new HashSet<>(notFoundPages);
     }
 
-    // Новый метод: возвращает статистику браузеров в виде долей (от 0 до 1)
     public Map<String, Double> getBrowserStatistics() {
         Map<String, Double> browserStats = new HashMap<>();
-
-        // Вычисляем общее количество записей
         int total = browserUsage.values().stream().mapToInt(Integer::intValue).sum();
-
-        // Рассчитываем долю для каждого браузера
         for (Map.Entry<String, Integer> entry : browserUsage.entrySet()) {
             double ratio = total > 0 ? (double) entry.getValue() / total : 0;
             browserStats.put(entry.getKey(), ratio);
         }
-
         return browserStats;
     }
 

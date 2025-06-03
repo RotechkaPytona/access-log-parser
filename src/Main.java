@@ -61,6 +61,10 @@ public class Main {
         System.out.println("Общий трафик: " + stats.getTotalTraffic() + " байт");
         System.out.printf("Средний трафик в час: %.2f байт/час%n", stats.getTrafficRate());
 
+        System.out.printf("Среднее количество посещений в час: %.2f%n", stats.getAverageVisitsPerHour());
+        System.out.printf("Среднее количество ошибочных запросов в час: %.2f%n", stats.getAverageErrorRequestsPerHour());
+        System.out.printf("Средняя посещаемость одним пользователем: %.2f%n", stats.getAverageVisitsPerUser());
+
         System.out.println("\nРаспределение по ОС:");
         int finalLineCount = lineCount;
         stats.getOsUsage().forEach((os, count) ->
